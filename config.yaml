@@ -1,0 +1,92 @@
+# =============================================================================
+# Multi-Stage SDXL Image Generator - Configuration
+# =============================================================================
+
+model:
+  base: "WhiteAiZ/Illustrious-xl-v1.0"
+  refiner: "stabilityai/stable-diffusion-xl-refiner-1.0"
+  # NOTE: The Stability refiner was trained for sdxl-base-1.0, not Illustrious
+  # XL. This can cause subtle style drift. Set use_refiner: false to skip it.
+  use_refiner: true
+
+performance:
+  # "bf16" - bfloat16, recommended for Blackwell/Ampere+ GPUs (better range)
+  # "fp16" - float16, wider compatibility
+  dtype: "fp16"
+  # torch.compile the UNet for 20-40% faster inference after first run.
+  # First run is slower (compilation overhead). Skipped on the refiner.
+  compile_unet: false
+
+memory:
+  # "gpu"                - keep everything on GPU (fastest, needs ~16GB+ VRAM)
+  # "model_offload"      - whole-model CPU offload (good speed/VRAM balance)
+  # "sequential_offload" - layer-by-layer offload (minimum VRAM, slowest)
+  strategy: "model_offload"
+
+lora:
+  character_dir: "loras/character"
+  style_dir: "loras/style"
+  character_strength: 1.0
+  style_strength: 0.85
+
+prompts:
+  prompt_file: "manual_prompt.txt"
+  negative_prompt_file: "manual_negative_prompt.txt"
+  options_file: "prompt_options.txt"
+  max_extras: 5
+
+generation:
+  seed: -1  # -1 = random each run
+
+  # Base resolution - use SDXL bucket sizes (total ~1M pixels):
+  #   1024x1024  (1:1  square)
+  #    768x1344  (9:16 portrait - YouTube Shorts)
+  #    832x1216  (2:3  portrait)
+  #   1344x768   (16:9 landscape)
+  #   1216x832   (3:2  landscape)
+  base_width: 768
+  base_height: 1344
+
+  # Scale factors applied to base resolution:
+  #   mid   = base x mid_scale    (1344x768 -> 2688x1536)
+  #   final = base x final_scale  (1344x768 -> 5376x3072)
+  mid_scale: 2
+  final_scale: 4
+
+  # --- Stage 1: text-to-image at base resolution ---
+  t2i:
+    steps: 30
+    cfg: 8
+    denoise_split: 0.8   # base/refiner handoff (ignored if no refiner)
+
+  # --- Stage 2: img2img refinement at mid resolution ---
+  stage2:
+    enabled: true
+    steps: 22
+    cfg: 4.5
+    strength: 0.25
+    use_refiner: true
+    denoise_split: 0.8
+
+  # --- Stage 3: sliding-window tiled refinement at final resolution ---
+  stage3:
+    enabled: true
+    steps: 18
+    cfg: 4.5
+    strength: 0.4
+    use_refiner: true # skip refiner on tiles (faster, avoids style drift)
+    tile_size: 2048        # diffusion tile size in px (must be multiple of 8)
+    tile_overlap: 256      # overlap between adjacent tiles
+    blend_mode: "cosine"   # "cosine" (smooth) or "linear"
+
+upscaler:
+  # "esrgan"  - RealESRGAN_x4plus_anime_6B (high-quality anime upscaling)
+  # "lanczos" - PIL Lanczos resampling (fast, lower quality)
+  method: "esrgan"
+  model_path: "weights/RealESRGAN_x4plus_anime_6B.pth"
+  tile_size: 512   # ESRGAN internal tile size (GPU memory management)
+  tile_pad: 32     # tile edge padding (prevents ESRGAN seam artifacts)
+
+output:
+  dir: "outputs"
+  save_intermediates: true   # save upscaled images and tiles
