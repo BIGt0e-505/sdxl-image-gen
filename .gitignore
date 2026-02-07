@@ -1,0 +1,40 @@
+cat > .gitignore << 'EOF'
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Generated outputs
+outputs/
+*.png
+*.jpg
+*.jpeg
+
+# Model weights (too large for git)
+weights/
+*.pth
+*.safetensors
+*.ckpt
+
+# LoRA files (users add their own)
+loras/character/*.safetensors
+loras/style/*.safetensors
+loras/character/*.txt
+loras/style/*.txt
+
+# Keep folder structure
+!loras/character/.gitkeep
+!loras/style/.gitkeep
+
+# Environment
+.env
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+EOF
